@@ -114,7 +114,8 @@ O playbook `provisionar.yml` realiza as seguintes tarefas:
 
 3. Acesse a máquina virtual:
    ```bash
-   vagrant ssh
+   ssh ifpb@192.168.57.10 #usuário com privilégio root
+   ssh edvan@192.168.57.10 #usuário com níveis basicos 
    ```
 
 4. Para aplicar ou atualizar as configurações de provisionamento:
