@@ -1,0 +1,315 @@
+---
+- name: Configurar VM Debian
+  hosts: all
+  become: true
+
+  tasks:
+
+    - name: Atualizar todos os pacotes
+      apt:
+        update_cache: yes
+        upgrade: dist
+
+    - name: Definir hostname
+      hostname:
+        name: p01-edvan
+
+    - name: Criar os usuários edvan, oliveira, ifpb e nfs-ifpb com senhas
+      user:
+        name: "{{ item.name }}"
+        state: present
+        shell: "{{ item.shell }}"
+        password: "{{ item.password | password_hash('sha512') }}"
+      loop:
+        - { name: 'edvan', shell: '/bin/bash', password: 'ifpb' }
+        - { name: 'oliveira', shell: '/bin/bash', password: 'ifpb' }
+        - { name: 'ifpb', shell: '/bin/bash', password: 'admin' }
+        - { name: 'nfs-ifpb', shell: '/usr/sbin/nologin', password: '' }
+
+    - name: Criar diretório .ssh para usuários
+      file:
+        path: "/home/{{ item }}/.ssh"
+        state: directory
+        owner: "{{ item }}"
+        group: "{{ item }}"
+        mode: "0700"
+      loop:
+        - edvan
+        - oliveira
+
+    - name: Gerar pares de chaves SSH para usuários
+      openssh_keypair:
+        path: "/home/{{ item }}/.ssh/id_rsa"
+        type: rsa
+        size: 2048
+        state: present
+      loop:
+        - edvan
+        - oliveira    
+
+    - name: Criar o grupo "ifpb"
+      group:
+        name: ifpb
+        state: present
+
+    - name: Adicionar o usuário "ifpb" ao grupo "sudo"
+      user:
+        name: ifpb
+        groups: sudo
+        append: true
+
+    - name: Criar o grupo "acesso_ssh"
+      group:
+        name: acesso_ssh
+        state: present
+
+    - name: Adicionar usuários ao grupo "acesso_ssh"
+      user:
+        name: "{{ item }}"
+        groups: acesso_ssh
+        append: true
+      loop:
+        - edvan
+        - ifpb
+
+    - name: Encontrar chaves públicas no host local
+      find:
+        paths: "{{ lookup('env', 'HOME') }}/.ssh"
+        patterns: "*.pub"
+      delegate_to: localhost
+      become: false
+      register: public_keys
+    
+    - name: Criar chave pública local se não existir
+      openssh_keypair:
+        path: "{{ lookup('env', 'HOME') }}/.ssh/acesso_vm"
+        type: rsa
+        size: 2048
+        state: present
+      delegate_to: localhost
+      become: false
+      when: public_keys.matched == 0
+
+    - name: Atualizar a lista de chaves públicas após criação
+      find:
+        paths: "{{ lookup('env', 'HOME') }}/.ssh"
+        patterns: "*.pub"
+      delegate_to: localhost
+      become: false
+      register: public_keys
+
+    - name: Verificar se foram encontradas chaves
+      debug:
+        msg: "Nenhuma chave pública encontrada no host local."
+      when: public_keys.matched == 0
+
+    - name: Verificar se o diretório .ssh existe
+      stat:
+        path: /home/ifpb/.ssh
+      register: ssh_dir
+
+    - name: Criar o diretório .ssh para o usuário ifpb (se não existir)
+      file:
+        path: /home/ifpb/.ssh
+        state: directory
+        mode: 0700
+        owner: ifpb
+        group: ifpb
+      when: not ssh_dir.stat.exists and public_keys.matched > 0
+
+    - name: Adicionar chaves públicas aos usuários ifpb, edvan e oliveira
+      authorized_key:
+        user: "{{ item.user }}"
+        state: present
+        key: "{{ lookup('file', item.key.path) }}"
+      loop: 
+        - user: ifpb
+          key: "{{ public_keys.files[0] }}"
+        - user: edvan
+          key: "{{ public_keys.files[0] }}"
+        - user: oliveira
+          key: "{{ public_keys.files[0] }}"
+      when: public_keys.matched > 0
+
+    - name: Definir permissões corretas no arquivo authorized_keys
+      file:
+        path: /home/ifpb/.ssh/authorized_keys
+        mode: 0600
+        owner: ifpb
+        group: ifpb
+      when: public_keys.matched > 0
+
+    - name: Imprimir mensagem de sucesso
+      debug:
+        msg: "Chaves públicas adicionadas com sucesso para o usuário edvan."
+      when: public_keys.matched > 0
+
+    - name: Imprimir mensagem de falha (opcional)
+      debug:
+        msg: "Nenhuma chave pública foi adicionada."
+      when: public_keys.matched == 0
+
+    - name: Configurar mensagem de login SSH
+      copy:
+        dest: /etc/motd
+        content: |
+          Acesso restrito apenas à pessoas com autorização expressa
+          Seu acesso está sendo monitorado !!!
+
+    - name: Reiniciar serviço SSH
+      service:
+        name: ssh
+        state: restarted      
+          
+    - name: Configurar autenticação SSH
+      lineinfile:
+        path: /etc/ssh/sshd_config
+        regexp: "^{{ item.regexp }}"
+        line: "{{ item.line }}"
+      with_items:
+        - { regexp: "PermitRootLogin", line: "PermitRootLogin no" }
+        - { regexp: "PasswordAuthentication", line: "PasswordAuthentication no" }
+        - { regexp: "AllowGroups", line: "AllowGroups acesso_ssh" }
+
+    - name: Desabilitar exibição de 'Last login'
+      lineinfile:
+        path: /etc/ssh/sshd_config
+        regexp: "^PrintLastLog"
+        line: "PrintLastLog no"
+        state: present    
+
+    - name: Reiniciar serviço SSH
+      service:
+        name: ssh
+        state: restarted
+
+    - name: Configurar script de rastreamento de login
+      copy:
+        dest: /etc/profile.d/log_access.sh
+        content: |
+          #!/bin/bash
+          original_uid=$(id -u)
+          original_gid=$(id -g)
+          echo "$(date '+%Y-%m-%d %H:%M'); $USER; $original_uid; $original_gid; $SSH_TTY; $(echo $SSH_CLIENT | awk '{print $1}')" >> /dados/nfs/acessos
+          tail -n 1 /dados/nfs/acessos | awk -F';' '{print $1"; "$2"; "$5"; "$6}'
+        mode: "0755"        
+
+    - name: Instalar ferramentas LVM
+      apt:
+        name: lvm2
+        state: present
+
+    - name: Desmontar dispositivos adicionais (se montados)
+      mount:
+        path: /mnt/qualquer_ponto_de_montagem # Um ponto de montagem genérico. Não precisa existir.
+        src: /dev/sd{{ item }}
+        state: absent
+      loop:
+        - b
+        - c
+        - d
+      ignore_errors: yes    
+
+    - name: Limpar tabelas de partição existentes em discos adicionais
+      command: wipefs -a /dev/sd{{ item }}
+      loop:
+        - b
+        - c
+        - d
+
+    - name: Inicializar discos adicionais como volumes físicos
+      lvg:
+        vg: dados
+        pvs:
+          - /dev/sdb
+          - /dev/sdc
+          - /dev/sdd
+
+    - name: Criar Volume Lógico "sistema"
+      lvol:
+        vg: dados
+        lv: sistema
+        size: 15G
+        state: present
+
+    - name: Formatar LV sistema
+      filesystem:
+        fstype: ext4
+        dev: /dev/dados/sistema
+
+    - name: Montar /dados na inicialização
+      mount:
+        path: /dados
+        src: /dev/dados/sistema
+        fstype: ext4
+        state: mounted
+        opts: defaults
+
+    - name: Instalar pacote do servidor NFS
+      apt:
+        name: nfs-kernel-server
+        state: present
+
+    - name: Garantir que o diretório /dados/nfs exista
+      file:
+        path: /dados/nfs
+        state: directory
+        owner: nfs-ifpb
+        group: nfs-ifpb
+        mode: "0755"
+
+    - name: Aplicar configuração NFS
+      command: exportfs -ra
+
+    - name: Criar grupo logs_acesso
+      group:
+        name: logs_acesso
+        state: present
+
+    - name: Adicionar nfs-ifpb e usuários SSH ao grupo logs_acesso
+      user:
+        name: "{{ item }}"
+        groups: logs_acesso
+        append: yes
+      loop:
+        - nfs-ifpb
+        - ifpb
+        - edvan
+        - oliveira
+
+    - name: Definir proprietário e grupo para /dados/nfs/acessos
+      file:
+        path: /dados/nfs/acessos
+        owner: nfs-ifpb
+        group: logs_acesso
+        mode: '0660'
+        state: touch
+
+    - name: Garantir permissão de execução no script de log
+      file:
+        path: /etc/profile.d/log_access.sh
+        mode: '0755'
+
+    - name: Obter UID e GID do usuário nfs-ifpb 
+      block:
+        - name: Obter UID do usuário nfs-ifpb
+          shell: id -u nfs-ifpb
+          register: nfs_ifpb_uid
+
+        - name: Obter GID do usuário nfs-ifpb
+          shell: id -g nfs-ifpb
+          register: nfs_ifpb_gid 
+
+    - name: Configurar servidor NFS (mapeando todos os usuários para nfs-ifpb 
+      blockinfile:
+        path: /etc/exports
+        block: |
+          /dados/nfs 192.168.57.0/24(rw,sync,no_root_squash,no_subtree_check,anonuid={{ nfs_ifpb_uid.stdout }},anongid={{ nfs_ifpb_gid.stdout }})
+        marker: "# {mark} ANSIBLE MANAGED NFS CONFIGURATION (Mapeamento Anonimo - NÃO RECOMENDADO)"
+
+    - name: Aplicar configuração NFS
+      command: exportfs -ra
+
+    
+
+   
