@@ -11,7 +11,7 @@ Certifique-se de que os seguintes softwares estejam instalados no seu sistema:
 - [VirtualBox](https://www.virtualbox.org/)
 - [Ansible](https://www.ansible.com/)
 - comando: pip3 install --user ansible
-- [Módulo passlib instalado]
+- [Módulo passlib instalado](http://passlib.com)
 - comando: pip3 install --user passlib
 
 
