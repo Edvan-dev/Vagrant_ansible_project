@@ -7,7 +7,7 @@ Este projeto utiliza o Vagrant para configurar e provisionar uma máquina virtua
 
 Certifique-se de que os seguintes softwares estejam instalados no seu sistema:
 
-- [Vagrant](https://www.vagrantup.com/) # na versão 2.4.3 ou superior
+- [Vagrant](https://www.vagrantup.com/)
 - [VirtualBox](https://www.virtualbox.org/)
 - [Ansible](https://www.ansible.com/)
 - Módulo passlib instalado no python
