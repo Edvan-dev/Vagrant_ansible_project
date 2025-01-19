@@ -1,17 +1,17 @@
 Vagrant.configure("2") do |config|
-    # Define the base box
+    # Definir a box base
     config.vm.box = "generic/debian12"
   
-    # Set up the VM configuration
+    # Configurar a VM
     config.vm.provider "virtualbox" do |vb|
       vb.name = "p01_Edvan"
       vb.memory = 1024
     end
   
-    # Network configuration
+    # Configuração de rede
     config.vm.network "private_network", ip: "192.168.57.10"
   
-    # Additional disk configuration
+    # Configuração de discos adicionais
     (1..3).each do |i|
       config.vm.provider "virtualbox" do |vb|
         vb.customize ["createhd", "--filename", "disk#{i}.vdi", "--size", 10240]
@@ -19,7 +19,7 @@ Vagrant.configure("2") do |config|
       end
     end
   
-    # Provisioning with Ansible
+    # Provisionamento com Ansible
     config.vm.provision "ansible" do |ansible|
       ansible.playbook = "provisionar.yml"
     end

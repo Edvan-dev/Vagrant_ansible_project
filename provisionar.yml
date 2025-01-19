@@ -183,6 +183,20 @@
         name: ssh
         state: restarted
 
+    - name: Configurar fuso horário
+      timezone:
+        name: America/Sao_Paulo
+          
+    - name: Instalar e configurar chrony
+      apt:
+        name: chrony
+        state: present
+      
+    - name: Reiniciar o serviço chrony
+      service:
+        name: chrony
+        state: restarted    
+
     - name: Configurar script de rastreamento de login
       copy:
         dest: /etc/profile.d/log_access.sh
@@ -199,16 +213,22 @@
         name: lvm2
         state: present
 
-    - name: Desmontar dispositivos adicionais (se montados)
-      mount:
-        path: /mnt/qualquer_ponto_de_montagem # Um ponto de montagem genérico. Não precisa existir.
-        src: /dev/sd{{ item }}
-        state: absent
+    - name: Verificar se os dispositivos estão montados
+      shell: mount | grep "/dev/sd{{ item }}"
+      register: mount_check
+      changed_when: mount_check.rc == 0
+      failed_when: false
       loop:
         - b
         - c
         - d
-      ignore_errors: yes    
+
+    - name: Desmontar dispositivos adicionais (se montados)
+      mount:
+        path: "/mnt/{{ item }}"
+        state: absent
+      loop: "{{ mount_check.results | selectattr('rc', 'eq', 0) | map(attribute='item') | list }}"
+      when: mount_check.results | selectattr('rc', 'eq', 0) | list | length > 0
 
     - name: Limpar tabelas de partição existentes em discos adicionais
       command: wipefs -a /dev/sd{{ item }}
@@ -305,11 +325,7 @@
         path: /etc/exports
         block: |
           /dados/nfs 192.168.57.0/24(rw,sync,no_root_squash,no_subtree_check,anonuid={{ nfs_ifpb_uid.stdout }},anongid={{ nfs_ifpb_gid.stdout }})
-        marker: "# {mark} ANSIBLE MANAGED NFS CONFIGURATION (Mapeamento Anonimo - NÃO RECOMENDADO)"
+        marker: "# {mark} ANSIBLE MANAGED NFS CONFIGURATION"
 
     - name: Aplicar configuração NFS
       command: exportfs -ra
-
-    
-
-   
