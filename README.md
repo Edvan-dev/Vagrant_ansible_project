@@ -10,8 +10,7 @@ Certifique-se de que os seguintes softwares estejam instalados no seu sistema:
 - [Vagrant](https://www.vagrantup.com/) # na versão 2.4.3 ou superior
 - [VirtualBox](https://www.virtualbox.org/)
 - [Ansible](https://www.ansible.com/)
-- comando: pip3 install --user ansible
-- [Módulo passlib instalado](http://passlib.com)
+- Módulo passlib instalado no python
 - comando: pip3 install --user passlib
 
 
