@@ -26,7 +26,7 @@ O arquivo `Vagrantfile` define as configurações da máquina virtual:
 
 1. **Definição da box base**:
    ```ruby
-   config.vm.box = "generic/debian12"
+   config.vm.box = "debian/bookworm64"
    ```
    Define a box base utilizada como Debian 12 genérico.
 
