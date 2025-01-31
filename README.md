@@ -2,7 +2,9 @@
 # Configuração de Ambiente com Vagrant e Ansible
 
 ### Projeto desenvolvido em cumprimento a avalição da disciplina Administração de Sistemas Abertos.
+
 Aluno: Edvan da Silva Oliveira
+
 Prof: Pedro Batista de Carvalho Filho
 
 Este projeto utiliza o Vagrant para configurar e provisionar uma máquina virtual baseando-se na distribuição Debian 12, com configuração de rede privada, discos adicionais e provisionamento automatizado com Ansible.
