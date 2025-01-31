@@ -16,8 +16,6 @@ Certifique-se de que os seguintes softwares estejam instalados no seu sistema:
 - [Vagrant](https://www.vagrantup.com/)
 - [VirtualBox](https://www.virtualbox.org/)
 - [Ansible](https://www.ansible.com/)
-- Módulo passlib instalado no python
-- comando: pip3 install --user passlib
 
 
 ## Configuração do Ambiente
