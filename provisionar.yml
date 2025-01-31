@@ -70,7 +70,7 @@
         append: true
       loop:
         - edvan
-        - ifpb
+        - oliveira
 
     - name: Encontrar chaves públicas no host local
       find:
